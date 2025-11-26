@@ -1,5 +1,4 @@
 import os
-import random
 import time
 import yfinance as yf
 import numpy as np
@@ -20,28 +19,9 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras import regularizers
 
-# -------------------------
-# Global parameters
-# -------------------------
-LOOKBACK_PERIOD = 60
+from src.config import LOOKBACK_PERIOD, NSE_TICKERS
+from src.utils import save_preprocessing, load_preprocessing
 
-NSE_TICKERS = [
-    'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'INFY.NS',
-    'HINDUNILVR.NS', 'BHARTIARTL.NS', 'ITC.NS', 'SBIN.NS', 'LT.NS',
-    'BAJFINANCE.NS', 'ASIANPAINT.NS', 'KOTAKBANK.NS', 'AXISBANK.NS',
-    'SUNPHARMA.NS', 'MARUTI.NS', 'ULTRACEMCO.NS', 'NESTLEIND.NS',
-    'WIPRO.NS', 'TECHM.NS', 'HCLTECH.NS', 'INDUSINDBK.NS', 'TITAN.NS',
-    'ADANIPORTS.NS', 'GRASIM.NS', 'POWERGRID.NS', 'NTPC.NS', 'ONGC.NS',
-    'COALINDIA.NS', 'IOC.NS', 'BPCL.NS', 'GAIL.NS', 'MM.NS', 'HEROMOTOCO.NS',
-    'DRREDDY.NS', 'CIPLA.NS', 'SBILIFE.NS', 'HDFCLIFE.NS', 'BRITANNIA.NS',
-    'EICHERMOT.NS', 'JSWSTEEL.NS', 'TATAMOTORS.NS', 'TATASTEEL.NS',
-    'HDFCLTD.NS', 'BAJAJFINSV.NS', 'DIVISLAB.NS', 'APOLLOHOSP.NS',
-    'BANDHANBNK.NS', 'PIDILITIND.NS', 'DMART.NS'
-]
-
-# -------------------------
-# Safe download function
-# -------------------------
 def safe_download(ticker):
     """Download a single ticker with retries."""
     for attempt in range(5):
@@ -57,10 +37,6 @@ def safe_download(ticker):
     print(f"[FAILED] Could not download {ticker}")
     return None
 
-
-# -------------------------
-# Data preparation
-# -------------------------
 def download_and_preprocess_data(tickers, lookback=LOOKBACK_PERIOD):
     print("\nStarting per-ticker download...\n")
 
@@ -76,7 +52,6 @@ def download_and_preprocess_data(tickers, lookback=LOOKBACK_PERIOD):
     if len(stock_data) == 0:
         raise RuntimeError("❌ ALL TICKERS FAILED. No data to train on.")
 
-    # Combine into DataFrame
     df_all = pd.DataFrame(stock_data)
     df_all = df_all.ffill().bfill()
 
@@ -124,10 +99,6 @@ def download_and_preprocess_data(tickers, lookback=LOOKBACK_PERIOD):
 
     return X_comb, Y_comb, ticker_map, preprocessing_info
 
-
-# -------------------------
-# Model
-# -------------------------
 def build_attention_lstm_model(input_shape):
     reg = regularizers.l1_l2(l1=1e-5, l2=1e-4)
 
@@ -139,7 +110,6 @@ def build_attention_lstm_model(input_shape):
     x = LSTM(64, return_sequences=True, kernel_regularizer=reg)(x)
     x = Dropout(0.2)(x)
 
-    # Attention
     att_score = TimeDistributed(Dense(1, activation="tanh"))(x)
     att_score = Lambda(lambda z: tf.squeeze(z, -1))(att_score)
     att_weights = Activation("softmax")(att_score)
@@ -159,15 +129,10 @@ def build_attention_lstm_model(input_shape):
     model = Model(inputs=inp, outputs=out)
     return model
 
-
-# -------------------------
-# Train
-# -------------------------
 def weighted_loss(y_true, y_pred):
     mse = tf.reduce_mean(tf.square(y_true - y_pred))
     mae = tf.reduce_mean(tf.abs(y_true - y_pred))
     return 0.7 * mse + 0.3 * mae
-
 
 def train_model(model, X_train, Y_train):
     model.compile(
@@ -191,10 +156,6 @@ def train_model(model, X_train, Y_train):
         callbacks=cb
     )
 
-
-# -------------------------
-# Evaluate
-# -------------------------
 def evaluate_model(model, X_test, Y_test, ticker_map, prep):
     preds_scaled = model.predict(X_test)
 
@@ -220,10 +181,6 @@ def evaluate_model(model, X_test, Y_test, ticker_map, prep):
 
     return actual, predicted
 
-
-# -------------------------
-# Main
-# -------------------------
 def main():
     X, Y, tickers, prep = download_and_preprocess_data(NSE_TICKERS)
 
@@ -238,7 +195,8 @@ def main():
     train_model(model, X_train, Y_train)
 
     evaluate_model(model, X_test, Y_test, t_test, prep)
-
+    
+    save_preprocessing(prep, "models/preprocessing_info.joblib")
 
 if __name__ == "__main__":
     main()
