@@ -1,4 +1,4 @@
-# LSTM Market Dynamics (Improved Repo)
+# LSTM Market Dynamics
 
 This repository contains an improved and safer structure for training an LSTM-based model on multiple stock tickers.
 
