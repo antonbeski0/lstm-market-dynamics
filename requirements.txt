@@ -1,6 +1,8 @@
+python>=3.9
+numpy>=1.22
+pandas>=1.5
+matplotlib
+scikit-learn
 yfinance
 tensorflow>=2.10
-scikit-learn
-matplotlib
-pandas
-numpy
+joblib
